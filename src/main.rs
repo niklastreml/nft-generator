@@ -1,46 +1,59 @@
 use image::{imageops::overlay, GenericImage, Pixel, Primitive};
 use rand::Rng;
-use std::{
-    env, fs,
-    path::PathBuf,
-    sync::{Arc, Barrier},
-    thread,
-}; // 0.8.0
+use std::{env, fs, path::PathBuf, sync::mpsc::channel}; // 0.8.0
 use threadpool::ThreadPool;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     let num = args[1].parse().unwrap();
+    let n_threads = args[3].parse().unwrap_or(8);
 
-    // let pool = ThreadPool::new(8);
+    let pool = ThreadPool::new(n_threads);
 
     // let barrier = Arc::new(Barrier::new(num as usize + 1));
+    let (sender, receiver) = channel();
+    fs::create_dir("./results");
 
     for i in 0..num {
         let src = args[2].clone();
         // let barrier = barrier.clone();
+        let sender = sender.clone();
+        pool.execute(move || {
+            let mut images = Vec::new();
+            let paths = get_random_files(src);
+            // println!("Working on #{:?}", i + 1);
+            let mut name = String::from("");
 
-        // pool.execute(move || {
-        let mut images = Vec::new();
-        let paths = get_random_files(src);
-        println!("Working on #{:?}", i + 1);
+            for p in paths {
+                name += "-";
+                name += p.file_stem().unwrap().to_str().unwrap();
 
-        for p in paths {
-            let img = image::open(p).unwrap();
-            let img = img.to_rgba16();
-            images.push(img);
-        }
+                // println!("{}", name);
+                let img = image::open(p).unwrap();
+                let img = img.to_rgba16();
+                images.push(img);
+            }
 
-        combine(&mut images)
-            .save(format!("results/out-{}.png", i + 1))
-            .unwrap();
+            combine(&mut images)
+                .save(format!("results/no{}{}.png", i + 1, name))
+                .unwrap();
 
-        // barrier.wait();
-        // });
+            sender.send(i + 1).unwrap();
+        });
     }
 
     // barrier.wait();
+    let mut done = Vec::new();
+    loop {
+        let i = receiver.recv().unwrap();
+        done.push(i);
+        println!("\rDone with {}/{}\r", i, num);
+
+        if done.len() >= num {
+            break;
+        }
+    }
 }
 
 fn combine<I, P, S>(images: &mut Vec<I>) -> I
