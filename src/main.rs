@@ -11,25 +11,21 @@ fn main() {
 
     let pool = ThreadPool::new(n_threads);
 
-    // let barrier = Arc::new(Barrier::new(num as usize + 1));
     let (sender, receiver) = channel();
     fs::create_dir("./results");
 
     for i in 0..num {
         let src = args[2].clone();
-        // let barrier = barrier.clone();
         let sender = sender.clone();
         pool.execute(move || {
             let mut images = Vec::new();
             let paths = get_random_files(src);
-            // println!("Working on #{:?}", i + 1);
             let mut name = String::from("");
 
             for p in paths {
                 name += "-";
                 name += p.file_stem().unwrap().to_str().unwrap();
 
-                // println!("{}", name);
                 let img = image::open(p).unwrap();
                 let img = img.to_rgba16();
                 images.push(img);
@@ -43,7 +39,6 @@ fn main() {
         });
     }
 
-    // barrier.wait();
     let mut done = Vec::new();
     loop {
         let i = receiver.recv().unwrap();
